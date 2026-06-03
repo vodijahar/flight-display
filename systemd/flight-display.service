@@ -1,0 +1,14 @@
+[Unit]
+Description=Flight E-Ink Display Update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/flight-display/app
+EnvironmentFile=-/etc/default/flight-display
+ExecStart=/usr/bin/python3 /opt/flight-display/app/update_display.py
+NoNewPrivileges=yes
+PrivateTmp=yes
+UMask=0077

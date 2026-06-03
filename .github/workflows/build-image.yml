@@ -1,0 +1,67 @@
+name: Build Raspberry Pi Flight Image
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            xz-utils \
+            rsync \
+            util-linux \
+            e2fsprogs \
+            qemu-user-static \
+            binfmt-support
+
+      - name: Download Raspberry Pi OS Lite 32-bit
+        run: |
+          mkdir -p base
+          cd base
+          curl -L -o raspios.img.xz https://downloads.raspberrypi.com/raspios_lite_armhf/images/raspios_lite_armhf-2026-04-21/2026-04-21-raspios-trixie-armhf-lite.img.xz
+
+      - name: Clone Waveshare driver
+        run: |
+          git clone --depth 1 https://github.com/waveshare/e-Paper.git /tmp/e-Paper
+          cp -r /tmp/e-Paper/RaspberryPi_JetsonNano/python/lib/waveshare_epd app/
+
+      - name: Make build script executable
+        run: chmod +x build-image.sh
+
+      - name: Build image
+        run: ./build-image.sh base/raspios.img.xz
+
+      - name: Create SHA256 checksum
+        run: |
+          cd out
+          sha256sum flight-display.img.xz > flight-display.img.xz.sha256
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flight-display-image
+          path: |
+            out/flight-display.img.xz
+            out/flight-display.img.xz.sha256
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/flight-display.img.xz
+            out/flight-display.img.xz.sha256
