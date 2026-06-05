@@ -41,3 +41,20 @@ def display_image(image):
     epd.Clear(0xFF)
     epd.display(epd.getbuffer(prepare_image(image)))
     epd.sleep()
+
+
+def display_image_partial(image):
+    epd = get_driver().EPD()
+    prepared = prepare_image(image)
+
+    if hasattr(epd, "init_fast"):
+        epd.init_fast()
+    else:
+        epd.init()
+
+    if hasattr(epd, "displayPartial"):
+        epd.displayPartial(epd.getbuffer(prepared))
+    else:
+        epd.display(epd.getbuffer(prepared))
+
+    epd.sleep()

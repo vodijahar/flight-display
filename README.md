@@ -8,6 +8,7 @@ Raspberry Pi Zero W / Zero 2 W flight tracker for a Waveshare 2.13" e-paper disp
 - Flight number and AirLabs API key configured from a local web interface
 - Timer-driven display updates
 - Position, route, delay status, ETA, and approximate country/capital context
+- Automatic large clock mode after the tracked flight lands
 - First-boot SSH, hostname, and optional Wi-Fi setup
 - Runtime Python packages and Waveshare driver embedded in the image
 - No third-party Python HTTP client
@@ -29,6 +30,12 @@ https://airlabs.co/api/v9/flight
 AirLabs provides the flight status, route, estimated arrival time, delay fields, and live position used by the display. The position is also used for a small locator map and a best-effort country/capital lookup.
 
 You need an AirLabs API key and internet access for live flight updates. The display and web interface still boot without Wi-Fi, but live tracking waits until the Pi has network access.
+
+Flight times are shown in the Raspberry Pi's local timezone. For example, if the flight lands in the US but the Pi is configured for Japan time, the ETA shown on the e-paper display is converted to Japan time.
+
+The timer runs every minute. While the flight is active, the app throttles AirLabs requests to once every 10 minutes by default. Change `FLIGHT_POLL_SECONDS` in `/etc/default/flight-display` if you need a different polling interval.
+
+When the selected flight reports a landed/arrived status, the app stops polling AirLabs for that flight and switches the display to a large `HH:MM` clock. Clock ticks use the Waveshare driver's partial refresh path where supported, so only the changing time is updated without a full panel clear.
 
 ## Build Locally
 
@@ -73,6 +80,7 @@ WIFI_HIDDEN=0
 
 FLIGHT_NUMBER=BA123
 AIRLABS_API_KEY=your-api-key
+FLIGHT_POLL_SECONDS=600
 ```
 
 Default SSH login:
@@ -103,6 +111,20 @@ http://flight-display.local:8080
 
 Set the flight number and AirLabs API key, then save. The web service triggers an immediate display refresh.
 
+The web UI also shows the latest known AirLabs quota information from the most recent successful flight API response. Viewing the web UI does not make an extra AirLabs request.
+
+The web UI stores these values in:
+
+```text
+/var/lib/flight-display/settings.json
+```
+
+Latest quota information is stored in:
+
+```text
+/var/lib/flight-display/api_usage.json
+```
+
 Default web login:
 
 ```text
@@ -110,6 +132,42 @@ flight / flight
 ```
 
 Change `WEB_USER` and `WEB_PASSWORD` in `flight-display.env` before first boot, or in `/etc/default/flight-display` later.
+
+## API Key Setup
+
+You can provide the AirLabs API key in any of these places:
+
+Before first boot, add it to `flight-display.env` on the boot partition:
+
+```bash
+FLIGHT_NUMBER=BA123
+AIRLABS_API_KEY=your-airlabs-api-key
+```
+
+After boot, use the web UI:
+
+```text
+http://flight-display.local:8080
+```
+
+Or edit the service environment on the Pi:
+
+```bash
+sudo nano /etc/default/flight-display
+```
+
+Add or update:
+
+```bash
+FLIGHT_NUMBER=BA123
+AIRLABS_API_KEY=your-airlabs-api-key
+```
+
+Then force a refresh:
+
+```bash
+sudo systemctl start flight-display.service
+```
 
 ## Changing Wi-Fi Later
 

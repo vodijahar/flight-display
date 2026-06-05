@@ -1,11 +1,19 @@
-import json
-
 from config import (
     AIRLABS_API_KEY,
     DEFAULT_FLIGHT_NUMBER,
     SETTINGS_FILE,
-    STATE_DIR,
 )
+from state import read_json, write_json
+
+MASKED_API_KEY = "********"
+
+
+def clean_api_key(value):
+    return "".join(ch for ch in str(value or "").strip() if ch.isprintable())
+
+
+def clean_flight_number(value):
+    return "".join(ch for ch in str(value or "").strip().upper() if ch.isalnum())
 
 
 def default_settings():
@@ -17,25 +25,16 @@ def default_settings():
 
 def load_settings():
     settings = default_settings()
-    if SETTINGS_FILE.exists():
-        try:
-            settings.update(json.loads(SETTINGS_FILE.read_text(encoding="utf-8")))
-        except Exception:
-            pass
-    settings["api_key"] = str(settings.get("api_key", "")).strip()
-    settings["flight_number"] = str(settings.get("flight_number", "")).strip().upper()
+    settings.update(read_json(SETTINGS_FILE))
+    settings["api_key"] = clean_api_key(settings.get("api_key", ""))
+    settings["flight_number"] = clean_flight_number(settings.get("flight_number", ""))
     return settings
 
 
 def save_settings(settings):
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
     clean = {
-        "api_key": str(settings.get("api_key", "")).strip(),
-        "flight_number": str(settings.get("flight_number", "")).strip().upper(),
+        "api_key": clean_api_key(settings.get("api_key", "")),
+        "flight_number": clean_flight_number(settings.get("flight_number", "")),
     }
-    SETTINGS_FILE.write_text(
-        json.dumps(clean, ensure_ascii=False, sort_keys=True),
-        encoding="utf-8",
-    )
-    SETTINGS_FILE.chmod(0o600)
+    write_json(SETTINGS_FILE, clean)
     return clean

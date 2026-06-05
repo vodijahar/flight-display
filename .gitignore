@@ -1,5 +1,6 @@
 __pycache__/
 .venv/
+image/flight-display.env
 *.pyc
 *.pyo
 *.swp

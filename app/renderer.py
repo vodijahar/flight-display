@@ -104,3 +104,28 @@ def render_status(title, lines):
         draw.text((8, y), str(line)[:32], font=FONT_TEXT, fill=0)
         y += 18
     return image
+
+
+def clock_font(text):
+    for size in range(82, 20, -2):
+        font = load_font(FONT_BOLD_PATH, size)
+        bbox = font.getbbox(text)
+        width = bbox[2] - bbox[0]
+        height = bbox[3] - bbox[1]
+        if width <= WIDTH - 8 and height <= HEIGHT - 8:
+            return font
+    return FONT_BIG
+
+
+def render_clock(now):
+    text = now.strftime("%H:%M")
+    image = Image.new("1", (WIDTH, HEIGHT), 255)
+    draw = ImageDraw.Draw(image)
+    font = clock_font(text)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    x = (WIDTH - text_width) // 2 - bbox[0]
+    y = (HEIGHT - text_height) // 2 - bbox[1]
+    draw.text((x, y), text, font=font, fill=0)
+    return image, text

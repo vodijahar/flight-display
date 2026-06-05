@@ -1,26 +1,16 @@
-import json
-
-from config import LOCATION_CACHE_FILE, NOMINATIM_REVERSE_URL, RESTCOUNTRIES_URL, STATE_DIR
+from config import LOCATION_CACHE_FILE, NOMINATIM_REVERSE_URL, RESTCOUNTRIES_URL
 from net import get_json
+from state import read_json, write_json
 
 USER_AGENT = "flight-display/1.0"
 
 
 def load_cache():
-    if not LOCATION_CACHE_FILE.exists():
-        return {}
-    try:
-        return json.loads(LOCATION_CACHE_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    return read_json(LOCATION_CACHE_FILE)
 
 
 def save_cache(cache):
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    LOCATION_CACHE_FILE.write_text(
-        json.dumps(cache, ensure_ascii=False, sort_keys=True),
-        encoding="utf-8",
-    )
+    write_json(LOCATION_CACHE_FILE, cache)
 
 
 def country_from_position(lat, lon):

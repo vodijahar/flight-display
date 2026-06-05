@@ -1,9 +1,9 @@
 [Unit]
-Description=Run flight display update every 10 minutes
+Description=Run flight display update every minute
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=10min
+OnUnitActiveSec=1min
 Persistent=true
 Unit=flight-display.service
 
