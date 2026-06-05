@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 STAMP="/var/lib/flight-display/.firstboot_done"
 LOG_DIR="/var/log/flight-display"
@@ -7,6 +7,7 @@ LOG_FILE="${LOG_DIR}/firstboot.log"
 
 mkdir -p /var/lib/flight-display "${LOG_DIR}"
 exec > >(tee -a "${LOG_FILE}") 2>&1
+trap 'echo "[!] First boot command failed at line ${LINENO}; continuing where possible"' ERR
 
 echo "[+] Flight display first boot starting"
 
@@ -62,6 +63,11 @@ configure_ssh_user() {
 
     printf '%s:%s\n' "${user_name}" "${user_password}" | chpasswd
     passwd -u "${user_name}" >/dev/null 2>&1 || true
+    mkdir -p /etc/ssh/sshd_config.d
+    cat > /etc/ssh/sshd_config.d/99-flight-display.conf <<'EOF'
+PasswordAuthentication yes
+PermitRootLogin no
+EOF
     systemctl enable ssh || true
     systemctl restart ssh || true
 }
@@ -133,6 +139,10 @@ configure_ssh_user
 configure_hostname
 configure_wifi
 
+echo "[+] Starting web UI"
+systemctl enable flight-web.service || true
+systemctl start flight-web.service || true
+
 echo "[+] Checking runtime"
 if ! /usr/bin/python3 -c 'from PIL import Image; import spidev; import RPi.GPIO' >/dev/null 2>&1; then
     echo "[!] Runtime packages missing; rebuild the image with embedded dependencies"
@@ -148,9 +158,7 @@ echo "[+] Running display test"
 /usr/bin/python3 /opt/flight-display/app/firstboot_test.py || true
 
 echo "[+] Enabling services"
-systemctl enable flight-web.service
-systemctl enable flight-display.timer
-systemctl start flight-web.service || true
+systemctl enable flight-display.timer || true
 wait_for_network
 systemctl start flight-display.service || true
 

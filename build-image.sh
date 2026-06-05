@@ -64,7 +64,8 @@ sudo chroot "${ROOT_MNT}" /bin/bash -c '
         python3-pil \
         python3-spidev \
         python3-rpi.gpio \
-        fonts-dejavu-core
+        fonts-dejavu-core \
+        openssh-server
     apt-get clean
     rm -rf /var/lib/apt/lists/*
 '
@@ -86,6 +87,17 @@ echo "[+] Enabling firstboot service"
 sudo mkdir -p "${ROOT_MNT}/etc/systemd/system/multi-user.target.wants"
 sudo ln -sf /etc/systemd/system/firstboot-flight.service \
     "${ROOT_MNT}/etc/systemd/system/multi-user.target.wants/firstboot-flight.service"
+sudo ln -sf /etc/systemd/system/flight-web.service \
+    "${ROOT_MNT}/etc/systemd/system/multi-user.target.wants/flight-web.service"
+
+echo "[+] Enabling SSH service"
+if [ -f "${ROOT_MNT}/lib/systemd/system/ssh.service" ]; then
+    sudo ln -sf /lib/systemd/system/ssh.service \
+        "${ROOT_MNT}/etc/systemd/system/multi-user.target.wants/ssh.service"
+elif [ -f "${ROOT_MNT}/usr/lib/systemd/system/ssh.service" ]; then
+    sudo ln -sf /usr/lib/systemd/system/ssh.service \
+        "${ROOT_MNT}/etc/systemd/system/multi-user.target.wants/ssh.service"
+fi
 
 echo "[+] Creating runtime directories"
 sudo mkdir -p "${ROOT_MNT}/var/lib/flight-display" "${ROOT_MNT}/var/log/flight-display"
