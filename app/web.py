@@ -8,6 +8,7 @@ from urllib.parse import parse_qs
 import subprocess
 
 from config import API_USAGE_FILE
+from setup_network import SETUP_PASSWORD, SETUP_SSID, configure_wifi
 from settings import MASKED_API_KEY, load_settings, save_settings
 from state import read_json
 
@@ -74,6 +75,8 @@ label {{ display: block; margin: 16px 0 6px; font-weight: 700; }}
 input {{ box-sizing: border-box; width: 100%; padding: 10px; font-size: 16px; }}
 button {{ margin-top: 18px; padding: 10px 14px; font-size: 16px; }}
 p {{ background: #f1f1f1; padding: 10px; }}
+fieldset {{ border: 1px solid #ccc; margin: 18px 0; padding: 0 14px 16px; }}
+legend {{ font-weight: 700; padding: 0 6px; }}
 </style>
 </head>
 <body>
@@ -81,10 +84,26 @@ p {{ background: #f1f1f1; padding: 10px; }}
 {message_html}
 {usage_html}
 <form method="post">
+<fieldset>
+<legend>Wi-Fi</legend>
+<p>Setup hotspot: {escape(SETUP_SSID)} / {escape(SETUP_PASSWORD)}</p>
+<label for="wifi_ssid">Wi-Fi SSID</label>
+<input id="wifi_ssid" name="wifi_ssid" placeholder="YourNetworkName">
+<label for="wifi_password">Wi-Fi password</label>
+<input id="wifi_password" name="wifi_password" type="password" autocomplete="off">
+<label for="wifi_country">Wi-Fi country</label>
+<input id="wifi_country" name="wifi_country" value="ZA" maxlength="2">
+<label>
+<input name="wifi_hidden" type="checkbox" value="1" style="width:auto"> Hidden network
+</label>
+</fieldset>
+<fieldset>
+<legend>Flight</legend>
 <label for="flight_number">Flight number</label>
 <input id="flight_number" name="flight_number" value="{flight}" placeholder="BA123 or BAW123" required>
 <label for="api_key">AirLabs API key</label>
 <input id="api_key" name="api_key" value="{api_key}" autocomplete="off" required>
+</fieldset>
 <button type="submit">Save and refresh</button>
 </form>
 </body>
@@ -126,6 +145,22 @@ class Handler(BaseHTTPRequestHandler):
         api_key = form.get("api_key", [""])[0].strip()
         if api_key == MASKED_API_KEY:
             api_key = current.get("api_key", "")
+
+        wifi_message = ""
+        wifi_ssid = form.get("wifi_ssid", [""])[0].strip()
+        if wifi_ssid:
+            try:
+                configure_wifi(
+                    wifi_ssid,
+                    form.get("wifi_password", [""])[0],
+                    form.get("wifi_country", [""])[0],
+                    form.get("wifi_hidden", ["0"])[0] == "1",
+                )
+                wifi_message = " Wi-Fi saved; reconnect to the device on the new network."
+            except Exception as exc:
+                self.respond(page(f"Saved flight settings. Wi-Fi failed: {exc}"))
+                return
+
         save_settings(
             {
                 "api_key": api_key,
@@ -133,7 +168,7 @@ class Handler(BaseHTTPRequestHandler):
             }
         )
         subprocess.run(["systemctl", "start", "flight-display.service"], check=False)
-        self.respond(page("Saved. Display refresh requested."))
+        self.respond(page(f"Saved. Display refresh requested.{wifi_message}"))
 
     def respond(self, content):
         body = content.encode("utf-8")

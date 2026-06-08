@@ -1,0 +1,14 @@
+[Unit]
+Description=Flight Display Setup Hotspot
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/flight-display/app
+ExecStart=/usr/bin/python3 /opt/flight-display/app/setup_network.py
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

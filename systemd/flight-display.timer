@@ -2,7 +2,7 @@
 Description=Run flight display update every minute
 
 [Timer]
-OnBootSec=2min
+OnBootSec=30s
 OnUnitActiveSec=1min
 Persistent=true
 Unit=flight-display.service

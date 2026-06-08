@@ -65,7 +65,9 @@ sudo chroot "${ROOT_MNT}" /bin/bash -c '
         python3-spidev \
         python3-rpi.gpio \
         fonts-dejavu-core \
-        openssh-server
+        openssh-server \
+        network-manager \
+        dnsmasq-base
     apt-get clean
     rm -rf /var/lib/apt/lists/*
 '
@@ -74,21 +76,70 @@ echo "[+] Installing flight app"
 sudo mkdir -p "${ROOT_MNT}/opt/flight-display/app"
 sudo rsync -a "${ROOT_DIR}/app/" "${ROOT_MNT}/opt/flight-display/app/"
 
-echo "[+] Installing firstboot script"
-sudo install -m 0755 "${ROOT_DIR}/image/firstboot.sh" \
-    "${ROOT_MNT}/usr/local/sbin/firstboot-flight.sh"
-
 echo "[+] Installing systemd units"
-for unit in firstboot-flight.service flight-display.service flight-display.timer flight-web.service; do
+for unit in flight-setup.service flight-display.service flight-display.timer flight-web.service; do
     sudo install -m 0644 "${ROOT_DIR}/systemd/${unit}" "${ROOT_MNT}/etc/systemd/system/${unit}"
 done
 
-echo "[+] Enabling firstboot service"
+echo "[+] Installing default environment"
+sudo install -m 0600 /dev/null "${ROOT_MNT}/etc/default/flight-display"
+sudo tee "${ROOT_MNT}/etc/default/flight-display" >/dev/null <<'EOF'
+WAVESHARE_DRIVER=V4
+DISPLAY_ROTATE=0
+DEVICE_HOSTNAME=flight-display
+SSH_USER=flight
+SSH_PASSWORD=flight
+WEB_USER=flight
+WEB_PASSWORD=flight
+FLIGHT_POLL_SECONDS=600
+EOF
+if [ -f "${ROOT_DIR}/image/flight-display.env" ]; then
+    sudo install -m 0600 "${ROOT_DIR}/image/flight-display.env" \
+        "${ROOT_MNT}/etc/default/flight-display"
+fi
+
+echo "[+] Creating SSH user"
+sudo chroot "${ROOT_MNT}" /bin/bash -c '
+    set -euo pipefail
+    set -a
+    . /etc/default/flight-display
+    set +a
+
+    user_name="${SSH_USER:-flight}"
+    user_password="${SSH_PASSWORD:-flight}"
+
+    if ! printf "%s" "${user_name}" | grep -Eq "^[a-z_][a-z0-9_-]{0,31}$"; then
+        echo "Invalid SSH_USER ${user_name}" >&2
+        exit 1
+    fi
+
+    groups="$(getent group sudo adm dialout video gpio i2c spi 2>/dev/null | cut -d: -f1 | paste -sd, -)"
+    if ! id "${user_name}" >/dev/null 2>&1; then
+        if [ -n "${groups}" ]; then
+            useradd -m -s /bin/bash -G "${groups}" "${user_name}"
+        else
+            useradd -m -s /bin/bash "${user_name}"
+        fi
+    fi
+
+    printf "%s:%s\n" "${user_name}" "${user_password}" | chpasswd
+    passwd -u "${user_name}" >/dev/null 2>&1 || true
+    mkdir -p /etc/ssh/sshd_config.d
+    cat > /etc/ssh/sshd_config.d/99-flight-display.conf <<EOF
+PasswordAuthentication yes
+PermitRootLogin no
+EOF
+'
+
+echo "[+] Enabling services"
 sudo mkdir -p "${ROOT_MNT}/etc/systemd/system/multi-user.target.wants"
-sudo ln -sf /etc/systemd/system/firstboot-flight.service \
-    "${ROOT_MNT}/etc/systemd/system/multi-user.target.wants/firstboot-flight.service"
+sudo ln -sf /etc/systemd/system/flight-setup.service \
+    "${ROOT_MNT}/etc/systemd/system/multi-user.target.wants/flight-setup.service"
 sudo ln -sf /etc/systemd/system/flight-web.service \
     "${ROOT_MNT}/etc/systemd/system/multi-user.target.wants/flight-web.service"
+sudo mkdir -p "${ROOT_MNT}/etc/systemd/system/timers.target.wants"
+sudo ln -sf /etc/systemd/system/flight-display.timer \
+    "${ROOT_MNT}/etc/systemd/system/timers.target.wants/flight-display.timer"
 
 echo "[+] Enabling SSH service"
 if [ -f "${ROOT_MNT}/lib/systemd/system/ssh.service" ]; then
@@ -109,11 +160,6 @@ fi
 
 echo "[+] Enabling SSH"
 sudo touch "${BOOT_MNT}/ssh"
-
-echo "[+] Copying optional flight-display.env"
-if [ -f "${ROOT_DIR}/image/flight-display.env" ]; then
-    sudo cp "${ROOT_DIR}/image/flight-display.env" "${BOOT_MNT}/flight-display.env"
-fi
 
 sync
 

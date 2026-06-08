@@ -1,7 +1,7 @@
 [Unit]
 Description=Flight E-Ink Display Update
-After=network-online.target
-Wants=network-online.target
+After=NetworkManager.service flight-setup.service
+Wants=NetworkManager.service flight-setup.service
 
 [Service]
 Type=oneshot

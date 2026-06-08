@@ -6,10 +6,11 @@ Raspberry Pi Zero W / Zero 2 W flight tracker for a Waveshare 2.13" e-paper disp
 
 - Waveshare 2.13" e-paper V2/V3/V4 support
 - Flight number and AirLabs API key configured from a local web interface
+- Setup hotspot for Wi-Fi configuration when no network is available
 - Timer-driven display updates
 - Position, route, delay status, ETA, and approximate country/capital context
 - Automatic large clock mode after the tracked flight lands
-- First-boot SSH, hostname, and optional Wi-Fi setup
+- Build-time SSH user and web UI service setup
 - Runtime Python packages and Waveshare driver embedded in the image
 - No third-party Python HTTP client
 
@@ -29,7 +30,7 @@ https://airlabs.co/api/v9/flight
 
 AirLabs provides the flight status, route, estimated arrival time, delay fields, and live position used by the display. The position is also used for a small locator map and a best-effort country/capital lookup.
 
-You need an AirLabs API key and internet access for live flight updates. The display and web interface still boot without Wi-Fi, but live tracking waits until the Pi has network access.
+You need an AirLabs API key and internet access for live flight updates. SSH and the web interface are enabled in the image. If no Wi-Fi is available, the device starts a temporary setup hotspot.
 
 Flight times are shown in the Raspberry Pi's local timezone. For example, if the flight lands in the US but the Pi is configured for Japan time, the ETA shown on the e-paper display is converted to Japan time.
 
@@ -62,7 +63,38 @@ Build from a Raspberry Pi OS Lite image:
 
 Flash `flight-display.img.xz`.
 
-If your flasher does not offer Wi-Fi/user customisation for custom images, mount the boot partition before first boot and create `flight-display.env`:
+The flight image creates a default SSH user during image build:
+
+```text
+flight / flight
+```
+
+If the Pi is not connected to Wi-Fi, join the setup hotspot:
+
+```text
+SSID: FlightDisplay-Setup
+Password: flightdisplay
+```
+
+Then open:
+
+```text
+http://192.168.4.1:8080
+```
+
+Use the web UI to enter Wi-Fi details, the flight number, and the AirLabs API key. After Wi-Fi is saved, reconnect your computer to the normal network and use the IP shown on the display.
+
+When the Pi is on your Wi-Fi, the e-paper display shows:
+
+```text
+Flight Display
+Web UI
+IP 192.168.x.x
+http://192.168.x.x:8080
+Set flight + API key
+```
+
+If you build locally and want to bake display/login defaults into the image, create `image/flight-display.env` before running `build-image.sh`:
 
 ```bash
 WAVESHARE_DRIVER=V4
@@ -72,11 +104,6 @@ SSH_USER=flight
 SSH_PASSWORD=flight
 WEB_USER=flight
 WEB_PASSWORD=flight
-
-WIFI_SSID=YourNetworkName
-WIFI_PASSWORD=YourNetworkPassword
-WIFI_COUNTRY=ZA
-WIFI_HIDDEN=0
 
 FLIGHT_NUMBER=BA123
 AIRLABS_API_KEY=your-api-key
@@ -131,13 +158,13 @@ Default web login:
 flight / flight
 ```
 
-Change `WEB_USER` and `WEB_PASSWORD` in `flight-display.env` before first boot, or in `/etc/default/flight-display` later.
+Change `WEB_USER` and `WEB_PASSWORD` in `image/flight-display.env` before building, or in `/etc/default/flight-display` later.
 
 ## API Key Setup
 
-You can provide the AirLabs API key in any of these places:
+You can provide the AirLabs API key in either of these places:
 
-Before first boot, add it to `flight-display.env` on the boot partition:
+At image build time, add it to `image/flight-display.env`:
 
 ```bash
 FLIGHT_NUMBER=BA123
@@ -145,6 +172,12 @@ AIRLABS_API_KEY=your-airlabs-api-key
 ```
 
 After boot, use the web UI:
+
+```text
+http://192.168.4.1:8080
+```
+
+or, once connected to normal Wi-Fi:
 
 ```text
 http://flight-display.local:8080
@@ -175,16 +208,16 @@ Over SSH:
 
 ```bash
 nmcli connection show
-sudo nmcli connection modify flight-display-wifi wifi.ssid "NewNetworkName"
-sudo nmcli connection modify flight-display-wifi wifi-sec.psk "NewNetworkPassword"
-sudo nmcli connection down flight-display-wifi
-sudo nmcli connection up flight-display-wifi
+sudo nmcli connection modify "YourConnectionName" wifi.ssid "NewNetworkName"
+sudo nmcli connection modify "YourConnectionName" wifi-sec.psk "NewNetworkPassword"
+sudo nmcli connection down "YourConnectionName"
+sudo nmcli connection up "YourConnectionName"
 ```
 
 For a hidden network:
 
 ```bash
-sudo nmcli connection modify flight-display-wifi wifi.hidden yes
+sudo nmcli connection modify "YourConnectionName" wifi.hidden yes
 ```
 
 ## Useful Commands
@@ -198,7 +231,7 @@ sudo systemctl start flight-display.service
 View logs:
 
 ```bash
-sudo journalctl -u firstboot-flight -u flight-display -u flight-web -n 150 --no-pager
+sudo journalctl -u flight-display -u flight-web -n 150 --no-pager
 sudo cat /var/log/flight-display/flight.log
 ```
 

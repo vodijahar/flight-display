@@ -1,6 +1,7 @@
 [Unit]
 Description=Flight Display Web UI
-After=network.target
+After=NetworkManager.service flight-setup.service
+Wants=NetworkManager.service flight-setup.service
 
 [Service]
 Type=simple

@@ -18,6 +18,8 @@ from flight import fetch_flight
 from renderer import render_clock, render_flight, render_status
 from settings import load_settings
 from state import lock_file, read_json, write_json
+from system_info import local_ip
+from setup_network import SETUP_PASSWORD, SETUP_SSID
 
 
 def setup_logging():
@@ -71,6 +73,20 @@ def show_status(title, lines):
     image = render_status(title, lines)
     image.save(LAST_RENDER_FILE)
     display_image(image)
+
+
+def show_setup(message=None):
+    ip = local_ip()
+    lines = ["Web UI"]
+    if ip:
+        lines.extend([f"IP {ip}", f"http://{ip}:8080"])
+    else:
+        lines.extend([SETUP_SSID, f"Pass {SETUP_PASSWORD}", "http://192.168.4.1:8080"])
+    if message:
+        lines.append(message)
+    else:
+        lines.append("Set flight + API key")
+    show_status("Flight Display", lines)
 
 
 def same_flight(old, settings):
@@ -147,6 +163,10 @@ def main():
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     with lock_file(UPDATE_LOCK_FILE):
         settings = load_settings()
+        if not settings.get("flight_number") or not settings.get("api_key"):
+            show_setup("Set flight + API key")
+            return
+
         previous = load_last_flight()
 
         if same_flight(previous, settings) and is_landed(previous):
@@ -166,14 +186,7 @@ def main():
                 return
 
             flight = settings.get("flight_number") or "not set"
-            show_status(
-                "Flight Pending",
-                [
-                    f"Flight: {flight}",
-                    type(exc).__name__[:30],
-                    str(exc)[:30],
-                ],
-            )
+            show_setup(f"{flight}: {type(exc).__name__}"[:30])
             return
 
         clear_clock_state()
